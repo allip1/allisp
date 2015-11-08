@@ -1,50 +1,24 @@
 #include<stdio.h>
 #include<stdlib.h>
 
-#include <editline/readline.h>
-#include <editline/history.h>
+
+#include "lval.h"
 #include "mpc.h"
-#include "lval.c"
+
 
 #define LASSERT(args, cond, err) \
   if (!(cond)) { lval_del(args); return lval_err(err); }
+
+
+static char buffer[2048];
 
 
 lval* builtin_op(lval*a, char* op);
 lval* builtin(lval*a, char* op);
 //lval.h
 
-void lval_print(lval* v);
-void lval_expr_print(lval* v, char open, char closed);
 lval* lval_eval_sexpr(lval* v);
 lval* lval_eval(lval* v);
-lval* lval_pop(lval* v, int i);
-lval* lval_take(lval* v, int i);
-
-void lval_expr_print(lval* v, char open, char close) {
-  putchar(open);
-  for (int i = 0; i < v->count; i++) {
-
-    /* Print Value contained within */
-    lval_print(v->cell[i]);
-
-    /* Don't print trailing space if last element */
-    if (i != (v->count-1)) {
-      putchar(' ');
-    }
-  }
-  putchar(close);
-}
-
-void lval_print(lval* v) {
-  switch (v->type) {
-    case LVAL_NUM:   printf("%li", v->num); break;
-    case LVAL_ERR:   printf("Error: %s", v->err); break;
-    case LVAL_SYM:   printf("%s", v->sym); break;
-    case LVAL_SEXPR: lval_expr_print(v, '(', ')'); break; 
-    case LVAL_QEXPR: lval_expr_print(v, '{', '}'); break;
- }
-}
 
 void lval_println(lval* v) { lval_print(v); putchar('\n'); }
 
@@ -58,12 +32,6 @@ lval* lval_read_num(mpc_ast_t* t) {
     lval_num(x) : lval_err("invalid number");
 }
 
-lval* lval_add(lval* v, lval* x) {
-  v->count++;
-  v->cell = realloc(v->cell, sizeof(lval*) * v->count);
-  v->cell[v->count-1] = x;
-  return v;
-}
 
 lval* lval_read(mpc_ast_t* t) {
 
@@ -127,40 +95,6 @@ lval* lval_eval(lval* v) {
   return v;
 }
 
-lval* lval_pop(lval* v, int i) {
-  /* Find the item at "i" */
-  lval* x = v->cell[i];
-
-  /* Shift memory after the item at "i" over the top */
-  memmove(&v->cell[i], &v->cell[i+1],
-    sizeof(lval*) * (v->count-i-1));
-
-  /* Decrease the count of items in the list */
-  v->count--;
-
-  /* Reallocate the memory used */
-  v->cell = realloc(v->cell, sizeof(lval*) * v->count);
-  return x;
-}
-
-lval* lval_take(lval* v, int i) {
-  lval* x = lval_pop(v, i);
-  lval_del(v);
-  return x;
-}
-
-
-lval* lval_join(lval* x, lval* y) {
-
-  /* For each cell in 'y' add it to 'x' */
-  while (y->count) {
-    x = lval_add(x, lval_pop(y, 0));
-  }
-
-  /* Delete the empty 'y' and return 'x' */
-  lval_del(y);  
-  return x;
-}
 
 lval* builtin_op(lval* a, char* op) {
   
@@ -274,6 +208,16 @@ lval* builtin(lval* a, char* func) {
   return lval_err("Unknown Function!");
 }
 
+char* readline(char* prompt) {
+  fputs(prompt, stdout);
+  fgets(buffer, 2048, stdin);
+  char* cpy = malloc(strlen(buffer)+1);
+  strcpy(cpy, buffer);
+  cpy[strlen(cpy)-1] = '\0';
+  return cpy;
+}
+
+
 int main(int argc, char** argv) 
 {
 
@@ -285,17 +229,16 @@ int main(int argc, char** argv)
 	mpc_parser_t* Expr   = mpc_new("expr");
 	mpc_parser_t* Lispy  = mpc_new("lispy");
 
-	mpca_lang(MPCA_LANG_DEFAULT,
- 	 "                                                        \
-  	 number : /-?[0-9]+/ ;                                  \
-   	 symbol : \"list\" | \"head\" | \"tail\"                \
-          	 | \"join\" | \"eval\" | '+' | '-' | '*' | '/' ; \
-   	 sexpr  : '(' <expr>* ')' ;                             \
-   	 qexpr  : '{' <expr>* '}' ;                             \
-   	 expr   : <number> | <symbol> | <sexpr> | <qexpr> ;     \
-   	 lispy  : /^/ <expr>* /$/ ;                             \
- 	 ",
-	  Number, Symbol, Sexpr, Qexpr, Expr, Lispy);
+mpca_lang(MPCA_LANG_DEFAULT,
+  "                                                     \
+    number : /-?[0-9]+/ ;                               \
+    symbol : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ ;         \
+    sexpr  : '(' <expr>* ')' ;                          \
+    qexpr  : '{' <expr>* '}' ;                          \
+    expr   : <number> | <symbol> | <sexpr> | <qexpr> ;  \
+    lispy  : /^/ <expr>* /$/ ;                          \
+  ",
+  Number, Symbol, Sexpr, Qexpr, Expr, Lispy);
 
 
 	puts("Lisp version 0.0.0.1");
@@ -305,8 +248,6 @@ int main(int argc, char** argv)
 	{
 		char* input = readline("*lisp >");
 		
-	        add_history(input);
-
 		mpc_result_t r;
 		if (mpc_parse("<stdin>", input, Lispy, &r)) {
  		 /* On Success Print the AST */
