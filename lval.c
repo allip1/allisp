@@ -79,7 +79,7 @@ void lval_del(lval* v) {
 
   /* Free the memory allocated for the "lval" struct itself */
   free(v);
-	}
+}
 
 
 void lval_expr_print(lval* v, char open, char close) {
@@ -247,5 +247,41 @@ void lenv_put(lenv* e, lval* k, lval* v) {
   strcpy(e->syms[e->count-1], k->sym);
 }
 
+lval* lval_eval(lenv* e, lval* v) {
+  if (v->type == LVAL_SYM) {
+    lval* x = lenv_get(e, v);
+    lval_del(v);
+    return x;
+  }
+  if (v->type == LVAL_SEXPR) { return lval_eval_sexpr(e, v); }
+  return v;
+}
+
+
+lval* lval_eval_sexpr(lenv* e, lval* v) {
+
+  for (int i = 0; i < v->count; i++) {
+    v->cell[i] = lval_eval(e, v->cell[i]);
+  }
+  
+  for (int i = 0; i < v->count; i++) {
+    if (v->cell[i]->type == LVAL_ERR) { return lval_take(v, i); }
+  }
+
+  if (v->count == 0) { return v; }  
+  if (v->count == 1) { return lval_take(v, 0); }
+
+  /* Ensure first element is a function after evaluation */
+  lval* f = lval_pop(v, 0);
+  if (f->type != LVAL_FUN) {
+    lval_del(v); lval_del(f);
+    return lval_err("first element is not a function");
+  }
+
+  /* If so call function to get result */
+  lval* result = f->fun(e, v);
+  lval_del(f);
+  return result;
+}
 
 

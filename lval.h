@@ -57,3 +57,6 @@ void lenv_del(lenv* e);
 lval* lenv_get(lenv* e, lval* k);
 void lenv_put(lenv* e, lval* k, lval* v);
 
+lval* lval_eval(lenv* e, lval* v);
+
+lval* lval_eval_sexpr(lenv* e, lval* v);
