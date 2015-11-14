@@ -17,11 +17,19 @@ CFLAGS:=-std=c99 -Wall
 program_deps += $(foreach srs, $(program_C_SRCS), $(srs) $(LDFLAGS))
 .PHONY: all clean distclean
 
-all: $(program_NAME)
+all: makef
 
 $(program_NAME):
 	$(CC) $(CFLAGS) $(program_deps) -o $(program_NAME)
 
+debug:
+	
+	$(CC) -g  $(CFLAGS) $(program_deps) -o $(program_NAME)
+
+makef: 
+	@- $(RM) $(program_NAME)
+	@- $(RM) $(program_OBJS)
+	$(CC) $(CFLAGS) $(program_deps) -o $(program_NAME)
 clean:
 	@- $(RM) $(program_NAME)
 	@- $(RM) $(program_OBJS)
